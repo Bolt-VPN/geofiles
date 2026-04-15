@@ -65,3 +65,9 @@ jobs:
           git add geoip.dat geosite.dat archive/
           git commit -m "update geo files $(date -u +%Y-%m-%d)"
           git push
+
+      - name: Purge CDN cache
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          curl -s "https://purge.jsdelivr.net/gh/Bolt-VPN/geofiles@latest/geoip.dat" > /dev/null
+          curl -s "https://purge.jsdelivr.net/gh/Bolt-VPN/geofiles@latest/geosite.dat" > /dev/null
