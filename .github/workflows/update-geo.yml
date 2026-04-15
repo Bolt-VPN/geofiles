@@ -16,8 +16,10 @@ jobs:
 
       - name: Download latest geo files
         run: |
-          curl -fSL -o geoip.dat.new "$SOURCE_GEOIP"
-          curl -fSL -o geosite.dat.new "$SOURCE_GEOSITE"
+          TAG_GEOIP=$(curl -s "https://api.github.com/repos/${SOURCE_GEOIP}/tags?per_page=1" | jq -r '.[0].name')
+          TAG_GEOSITE=$(curl -s "https://api.github.com/repos/${SOURCE_GEOSITE}/tags?per_page=1" | jq -r '.[0].name')
+          curl -fSL -o geoip.dat.new "https://cdn.jsdelivr.net/gh/${SOURCE_GEOIP}@${TAG_GEOIP}/release/geoip.dat"
+          curl -fSL -o geosite.dat.new "https://cdn.jsdelivr.net/gh/${SOURCE_GEOSITE}@${TAG_GEOSITE}/release/geosite.dat"
         env:
           SOURCE_GEOIP: ${{ secrets.SOURCE_GEOIP }}
           SOURCE_GEOSITE: ${{ secrets.SOURCE_GEOSITE }}
