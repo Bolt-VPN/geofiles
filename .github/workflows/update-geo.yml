@@ -16,13 +16,14 @@ jobs:
 
       - name: Download latest geo files
         run: |
-          TAG_GEOIP=$(curl -s "https://api.github.com/repos/${SOURCE_GEOIP}/tags?per_page=1" | jq -r '.[0].name')
-          TAG_GEOSITE=$(curl -s "https://api.github.com/repos/${SOURCE_GEOSITE}/tags?per_page=1" | jq -r '.[0].name')
-          curl -fSL -o geoip.dat.new "https://cdn.jsdelivr.net/gh/${SOURCE_GEOIP}@${TAG_GEOIP}/release/geoip.dat"
-          curl -fSL -o geosite.dat.new "https://cdn.jsdelivr.net/gh/${SOURCE_GEOSITE}@${TAG_GEOSITE}/release/geosite.dat"
+          REDIRECT=$(curl -sI "$SOURCE_URL" | grep -i "^location:" | tr -d '\r' | awk '{print $2}')
+          B64=$(echo "$REDIRECT" | sed 's|.*onadd/||')
+          GEOIP_URL=$(echo "$B64" | base64 -d | jq -r '.Geoipurl')
+          GEOSITE_URL=$(echo "$B64" | base64 -d | jq -r '.Geositeurl')
+          curl -fSL -o geoip.dat.new "$GEOIP_URL"
+          curl -fSL -o geosite.dat.new "$GEOSITE_URL"
         env:
-          SOURCE_GEOIP: ${{ secrets.SOURCE_GEOIP }}
-          SOURCE_GEOSITE: ${{ secrets.SOURCE_GEOSITE }}
+          SOURCE_URL: ${{ secrets.SOURCE_URL }}
 
       - name: Check for changes
         id: check
