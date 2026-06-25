@@ -1,0 +1,5 @@
+# Ad-list allow-exceptions (one domain per line) — subtracted from category-ads at
+# build time. Use to un-block a host the ad list catches but that we need working.
+# Format: bare domain (suffix match), or full:exact, regexp:..., keyword:...
+# Example:
+#   googleadservices.com   # un-block if ad-click tracking breaks a needed redirect
