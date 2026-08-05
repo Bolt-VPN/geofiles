@@ -2,72 +2,64 @@ name: Update geo files
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 */6 * * *"   # ad/RU lists move a few times a day; 6h is ample
   workflow_dispatch:
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download latest geo files
-        run: |
-          REDIRECT=$(curl -sI "$SOURCE_URL" | grep -i "^location:" | tr -d '\r' | awk '{print $2}')
-          B64=$(echo "$REDIRECT" | sed 's|.*onadd/||')
-          GEOIP_URL=$(echo "$B64" | base64 -d | jq -r '.Geoipurl')
-          GEOSITE_URL=$(echo "$B64" | base64 -d | jq -r '.Geositeurl')
-          curl -fSL -o geoip.dat.new "$GEOIP_URL"
-          curl -fSL -o geosite.dat.new "$GEOSITE_URL"
-        env:
-          SOURCE_URL: ${{ secrets.SOURCE_URL }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Check for changes
+      - name: Build slim geosite + fetch geoip
+        run: python3 scripts/build_geo.py --config sources.json --out-geosite geosite.dat.new --out-geoip geoip.dat.new
+
+      - name: Guard — fail if any profile category is missing/empty
+        run: python3 scripts/check_geo.py geosite.dat.new geoip.dat.new
+
+      - name: Detect changes
         id: check
         run: |
           changed=false
           for f in geoip.dat geosite.dat; do
-            if [ ! -f "$f" ] || ! cmp -s "$f" "$f.new"; then
-              changed=true
-            fi
+            if [ ! -f "$f" ] || ! cmp -s "$f" "$f.new"; then changed=true; fi
           done
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
-      - name: Archive old files
+      - name: Archive previous
         if: steps.check.outputs.changed == 'true'
         run: |
-          date_dir="archive/$(date -u +%Y-%m-%d)"
-          mkdir -p "$date_dir"
-          for f in geoip.dat geosite.dat; do
-            if [ -f "$f" ]; then
-              cp "$f" "$date_dir/"
-            fi
-          done
+          d="archive/$(date -u +%Y-%m-%d)"
+          mkdir -p "$d"
+          for f in geoip.dat geosite.dat; do [ -f "$f" ] && cp "$f" "$d/"; done
 
-      - name: Update current files
+      - name: Promote
         if: steps.check.outputs.changed == 'true'
         run: |
           mv geoip.dat.new geoip.dat
           mv geosite.dat.new geosite.dat
 
-      - name: Cleanup temp files
+      - name: Cleanup
         if: steps.check.outputs.changed != 'true'
         run: rm -f geoip.dat.new geosite.dat.new
 
       - name: Commit & push
         if: steps.check.outputs.changed == 'true'
         run: |
-          git config user.name "github-actions[bot]"
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add geoip.dat geosite.dat archive/
-          git commit -m "update geo files $(date -u +%Y-%m-%d)"
+          git commit -m "geo: rebuild $(date -u +%Y-%m-%dT%H:%MZ)"
           git push
 
-      - name: Purge CDN cache
+      - name: Purge jsDelivr cache
         if: steps.check.outputs.changed == 'true'
         run: |
-          curl -s "https://purge.jsdelivr.net/gh/Bolt-VPN/geofiles@latest/geoip.dat" > /dev/null
-          curl -s "https://purge.jsdelivr.net/gh/Bolt-VPN/geofiles@latest/geosite.dat" > /dev/null
+          curl -s "https://purge.jsdelivr.net/gh/Bolt-VPN/geofiles@latest/geoip.dat"  >/dev/null
+          curl -s "https://purge.jsdelivr.net/gh/Bolt-VPN/geofiles@latest/geosite.dat" >/dev/null
